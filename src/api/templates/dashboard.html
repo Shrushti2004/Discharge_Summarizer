@@ -1,0 +1,20 @@
+<h2>Patient Info</h2>
+<p>ID: {{ structured.patient_id }}</p>
+<p>Gender: {{ structured.gender }}</p>
+
+<h3>Diagnoses</h3>
+<ul>
+{% for d in structured.diagnoses %}
+<li>{{ d }}</li>
+{% endfor %}
+</ul>
+
+<h3>Discharge Summary (LLM)</h3>
+<p>{{ summary }}</p>
+
+<h3>Timeline</h3>
+<ul>
+{% for t in timeline %}
+<li>Admission {{ t }}</li>
+{% endfor %}
+</ul>
