@@ -3,7 +3,7 @@
 This project builds a lightweight GraphRAG pipeline for clinical discharge summarization using:
 
 - **Neo4j** for structured patient-admission graph data
-- **Weaviate** for vector + hybrid retrieval over admission text
+- **Weaviate** for vector semantic retrieval over admission text
 - **Groq LLM** for discharge summary generation
 - **FastAPI** for a simple web interface
 
@@ -11,6 +11,9 @@ This project builds a lightweight GraphRAG pipeline for clinical discharge summa
 
 ```text
 Discharge_Summarizer/
+  Dockerfile             # Container image for FastAPI app
+  .dockerignore
+  requirements.txt
   data/
     raw/                  # Source CSV datasets
     eval/                 # Evaluation outputs
@@ -18,7 +21,7 @@ Discharge_Summarizer/
     api/                  # FastAPI app + HTML templates
     db/                   # Neo4j and Weaviate clients
     ingestion/            # KG build + vector ingestion scripts
-    retrieval/            # Graph, hybrid, and timeline retrieval
+    retrieval/            # Graph retrieval, semantic query generation, vector search, logging
     llm/                  # Groq client + summary generation
     evaluation/           # Offline RAG evaluation script
 ```
@@ -32,16 +35,7 @@ Discharge_Summarizer/
 
 Python packages used by this repo:
 
-- `fastapi`
-- `uvicorn`
-- `jinja2`
-- `python-multipart`
-- `pandas`
-- `python-dotenv`
-- `neo4j`
-- `weaviate-client`
-- `sentence-transformers`
-- `groq`
+See `requirements.txt`.
 
 ## Environment Variables
 
@@ -72,7 +66,7 @@ From repository root:
 python -m venv venv
 .\venv\Scripts\activate
 pip install -U pip
-pip install fastapi uvicorn jinja2 python-multipart pandas python-dotenv neo4j weaviate-client sentence-transformers groq
+pip install -r requirements.txt
 ```
 
 ## Build the Knowledge Graph (Neo4j)
@@ -105,6 +99,16 @@ Enter an admission id (`hadm_id`) to view:
 - timeline admissions for that patient
 - LLM-generated discharge summary
 
+## Retrieval Flow (Current Codebase)
+
+For each `hadm_id`, retrieval logic now:
+
+1. Fetches structured data from Neo4j.
+2. Uses Groq to generate a semantic clinical query (`semantic_query_generator.py`).
+3. Embeds that query with `all-MiniLM-L6-v2`.
+4. Runs Weaviate `near_vector` search (top 10).
+5. Logs each retrieval experiment to `retrieval_logs.jsonl` (`retrieval_logger.py`).
+
 ## Evaluate Retrieval/Summary Quality
 
 Without LLM generation:
@@ -123,10 +127,51 @@ Output defaults to:
 
 - `data/eval/rag_eval_results.csv`
 
+## Run with Docker
+
+Build image:
+
+```powershell
+docker build -t discharge-summarizer .
+```
+
+Run container:
+
+```powershell
+docker run -p 8000:8000 --env-file .env discharge-summarizer
+```
+
+Open: `http://127.0.0.1:8000`
+
+Note: Neo4j and Weaviate are expected to run separately and be reachable from container using values in `.env`.
+evalution
+
+python src/evaluation/evaluate_rag.py
 ## Troubleshooting
 
 - Neo4j auth/connection errors: verify `NEO4J_URI`, user, password.
 - Weaviate query errors: verify `WEAVIATE_URL` and that schema `ClinicalDoc` exists.
 - Empty retrieval results: run vector ingestion again and confirm data loaded.
 - LLM errors: check `GROQ_API_KEY` and outbound network access.
+- Missing `retrieval_logs.jsonl`: run at least one retrieval request through API/pipeline.
 
+
+
+#first time run 
+python -m src.ingestion.build_kg
+python -m src.ingestion.vector_ingest
+
+
+
+# 3) Start only app (neo4j + weaviate are already running)
+# from project root
+.\venv\Scripts\Activate.ps1
+
+# start required services
+docker compose up -d weaviate neo4j
+
+# optional check
+docker compose ps
+
+# run app
+uvicorn src.api.main:app --reload

@@ -1,7 +1,16 @@
 import weaviate
 from src.config import WEAVIATE_URL
 
-client = weaviate.Client(WEAVIATE_URL)
+client = None
+
+
+def get_client():
+    global client
+    if client is None:
+        if not WEAVIATE_URL:
+            raise ValueError("Missing Weaviate config. Set WEAVIATE_URL.")
+        client = weaviate.Client(WEAVIATE_URL)
+    return client
 
 def create_schema():
     schema = {
@@ -13,5 +22,6 @@ def create_schema():
         ]
     }
 
-    if not client.schema.exists("ClinicalDoc"):
-        client.schema.create_class(schema)
+    weaviate_client = get_client()
+    if not weaviate_client.schema.exists("ClinicalDoc"):
+        weaviate_client.schema.create_class(schema)

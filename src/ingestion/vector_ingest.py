@@ -1,7 +1,7 @@
 import pandas as pd
 import uuid
 from sentence_transformers import SentenceTransformer
-from src.db.weaviate_client import client, create_schema
+from src.db.weaviate_client import create_schema, get_client
 
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -50,7 +50,7 @@ def ingest():
         vector = model.encode(text).tolist()
 
         # Idempotent write: remove any previous objects for this admission first.
-        client.batch.delete_objects(
+        get_client().batch.delete_objects(
             class_name="ClinicalDoc",
             where={
                 "path": ["hadm_id"],
@@ -59,7 +59,7 @@ def ingest():
             },
         )
 
-        client.data_object.create(
+        get_client().data_object.create(
             {
                 "text": text,
                 "hadm_id": hadm_id

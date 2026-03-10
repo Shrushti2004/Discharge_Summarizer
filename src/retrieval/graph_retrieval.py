@@ -1,4 +1,4 @@
-from src.db.neo4j_client import driver
+from src.db.neo4j_client import run_query
 
 
 def get_patient_data(hadm_id: int):
@@ -15,9 +15,8 @@ def get_patient_data(hadm_id: int):
         collect(DISTINCT drug.name) AS medications
     """
 
-    with driver.session() as session:
-        result = session.run(query, {"hadm": hadm_id})
-        record = result.single()
+    result = run_query(query, {"hadm": int(hadm_id)})
+    record = result[0] if result else None
 
     if record:
         return {
