@@ -1,20 +1,530 @@
-<h2>Patient Info</h2>
-<p>ID: {{ structured.patient_id }}</p>
-<p>Gender: {{ structured.gender }}</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clinical Dashboard</title>
+  <style>
+    :root {
+      --bg: #f5efe5;
+      --surface: rgba(255, 252, 247, 0.9);
+      --surface-strong: #fffdf9;
+      --surface-alt: #f0e4d1;
+      --text: #1f1d1a;
+      --muted: #6f665c;
+      --border: rgba(79, 57, 33, 0.12);
+      --accent: #b95c35;
+      --accent-deep: #8e3f1d;
+      --accent-soft: rgba(185, 92, 53, 0.12);
+      --teal-soft: rgba(54, 122, 123, 0.12);
+      --shadow: 0 20px 60px rgba(84, 56, 28, 0.12);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+    }
 
-<h3>Diagnoses</h3>
-<ul>
-{% for d in structured.diagnoses %}
-<li>{{ d }}</li>
-{% endfor %}
-</ul>
+    * {
+      box-sizing: border-box;
+    }
 
-<h3>Discharge Summary (LLM)</h3>
-<p>{{ summary }}</p>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(255, 210, 170, 0.85), transparent 32%),
+        radial-gradient(circle at 85% 15%, rgba(191, 225, 214, 0.7), transparent 24%),
+        linear-gradient(180deg, #fbf7f0 0%, var(--bg) 100%);
+    }
 
-<h3>Timeline</h3>
-<ul>
-{% for t in timeline %}
-<li>Admission {{ t }}</li>
-{% endfor %}
-</ul>
+    .shell {
+      width: min(1240px, calc(100% - 32px));
+      margin: 28px auto 40px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.5fr 0.9fr;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .hero-main {
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-main::after {
+      content: "";
+      position: absolute;
+      inset: auto -70px -80px auto;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(185, 92, 53, 0.18), transparent 68%);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-deep);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p {
+      margin: 0;
+    }
+
+    .hero-main h1 {
+      margin-top: 16px;
+      font-size: clamp(2rem, 4vw, 3.3rem);
+      line-height: 1.02;
+      max-width: 10ch;
+    }
+
+    .hero-main p {
+      margin-top: 14px;
+      max-width: 58ch;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 18px;
+      color: var(--accent-deep);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .hero-side {
+      display: grid;
+      gap: 14px;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .metric-card {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 140px;
+    }
+
+    .metric-label {
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .metric-value {
+      margin-top: 18px;
+      font-size: clamp(1.55rem, 3vw, 2.3rem);
+      font-weight: 750;
+      line-height: 1;
+    }
+
+    .metric-note {
+      margin-top: 10px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 0.94rem;
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.95fr);
+      align-items: start;
+      gap: 18px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 18px;
+      align-content: start;
+    }
+
+    .section {
+      padding: 24px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .section-head h2 {
+      font-size: 1.15rem;
+      letter-spacing: 0.01em;
+    }
+
+    .section-head span {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .summary-card {
+      background: linear-gradient(140deg, rgba(255, 255, 255, 0.88), rgba(251, 244, 235, 0.92));
+    }
+
+    .summary-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .summary-block {
+      padding: 18px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(120, 92, 58, 0.1);
+    }
+
+    .summary-block h3 {
+      font-size: 0.95rem;
+      margin-bottom: 8px;
+    }
+
+    .summary-block p {
+      line-height: 1.7;
+      color: #322c25;
+      font-size: 0.96rem;
+      white-space: pre-wrap;
+    }
+
+    .chip-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: var(--surface-alt);
+      border: 1px solid rgba(120, 92, 58, 0.12);
+      color: #3f352a;
+      font-size: 0.93rem;
+      line-height: 1.35;
+    }
+
+    .insight-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .insight-card {
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: rgba(54, 122, 123, 0.06);
+      border: 1px solid rgba(54, 122, 123, 0.12);
+    }
+
+    .insight-card strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .insight-card p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .bullet-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .bullet-list li + li {
+      margin-top: 4px;
+    }
+
+    .timeline {
+      position: relative;
+      display: grid;
+      gap: 14px;
+      padding-left: 10px;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 12px;
+      top: 6px;
+      bottom: 6px;
+      width: 2px;
+      background: linear-gradient(180deg, rgba(185, 92, 53, 0.15), rgba(185, 92, 53, 0.55), rgba(185, 92, 53, 0.08));
+    }
+
+    .timeline-item {
+      position: relative;
+      margin-left: 24px;
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: var(--surface-strong);
+      border: 1px solid var(--border);
+    }
+
+    .timeline-item.current {
+      background: linear-gradient(180deg, rgba(255, 245, 236, 0.98), rgba(255, 252, 247, 0.98));
+      border-color: rgba(185, 92, 53, 0.22);
+    }
+
+    .timeline-item::before {
+      content: "";
+      position: absolute;
+      left: -19px;
+      top: 20px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 6px rgba(185, 92, 53, 0.12);
+    }
+
+    .timeline-item strong {
+      display: block;
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+
+    .timeline-meta {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    .timeline-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .mini-tag {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-deep);
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .query-box,
+    .empty {
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 0.94rem;
+    }
+
+    .query-box {
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: #f8efe4;
+      border: 1px solid rgba(185, 92, 53, 0.16);
+    }
+
+    .empty {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      background: rgba(111, 102, 92, 0.08);
+    }
+
+    @media (max-width: 960px) {
+      .hero,
+      .content-grid,
+      .metric-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .shell {
+        width: min(100% - 20px, 1240px);
+        margin-top: 18px;
+      }
+
+      .hero-main,
+      .section,
+      .metric-card {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <article class="panel hero-main">
+        <div class="eyebrow">Discharge Intelligence</div>
+        <h1>Admission {{ structured.admission_id }}</h1>
+        <p>
+          A concise view of the current encounter with structured data, retrieval context, and discharge summary sections.
+        </p>
+        <a class="back-link" href="/">&#8592; Search another admission</a>
+      </article>
+
+      <div class="hero-side">
+        <div class="metric-grid">
+          <article class="panel metric-card">
+            <div class="metric-label">Patient</div>
+            <div class="metric-value">{{ structured.patient_id }}</div>
+            <div class="metric-note">Gender: {{ structured.gender or "Unknown" }}</div>
+          </article>
+
+          <article class="panel metric-card">
+            <div class="metric-label">Length Of Stay</div>
+            <div class="metric-value">
+              {% if structured.length_of_stay_days is not none %}
+              {{ structured.length_of_stay_days }}d
+              {% else %}
+              N/A
+              {% endif %}
+            </div>
+            <div class="metric-note">Admit {{ structured.admittime or "Unknown" }}</div>
+          </article>
+
+          <article class="panel metric-card">
+            <div class="metric-label">Diagnoses</div>
+            <div class="metric-value">{{ structured.diagnoses|length }}</div>
+            <div class="metric-note">Tracked for this admission</div>
+          </article>
+
+          <article class="panel metric-card">
+            <div class="metric-label">Meds</div>
+            <div class="metric-value">{{ structured.medications|length }}</div>
+            <div class="metric-note">Active medications recorded for this admission</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      <div class="stack">
+        <article class="panel section summary-card">
+          <div class="section-head">
+            <h2>Discharge Summary</h2>
+            <span>Current admission</span>
+          </div>
+          {% if summary.sections %}
+          <div class="summary-grid">
+            {% for section in summary.sections %}
+            <div class="summary-block">
+              <h3>{{ section.title }}</h3>
+              <p>{{ section.content }}</p>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty">No discharge summary sections were generated.</div>
+          {% endif %}
+        </article>
+
+        <article class="panel section">
+          <div class="section-head">
+            <h2>Current Admission Data</h2>
+            <span>Structured graph data</span>
+          </div>
+          <h3 style="margin-bottom: 10px;">Diagnoses</h3>
+          {% if structured.diagnoses %}
+          <div class="chip-grid" style="margin-bottom: 18px;">
+            {% for diagnosis in structured.diagnoses %}
+            <div class="chip">{{ diagnosis }}</div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty" style="margin-bottom: 18px;">No diagnoses were found for this admission.</div>
+          {% endif %}
+
+          <h3 style="margin-bottom: 10px;">Medications</h3>
+          {% if structured.medications %}
+          <div class="chip-grid">
+            {% for medication in structured.medications %}
+            <div class="chip">{{ medication }}</div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty">No medication records were found for this admission.</div>
+          {% endif %}
+        </article>
+      </div>
+
+      <div class="stack">
+        <article class="panel section">
+          <div class="section-head">
+            <h2>Patient Timeline</h2>
+            <span>Chronological admission history</span>
+          </div>
+          {% if timeline %}
+          <div class="timeline">
+            {% for item in timeline %}
+            <div class="timeline-item{% if item.is_current %} current{% endif %}">
+              <strong>Admission {{ item.admission_id }}</strong>
+              <div class="timeline-meta">
+                {% if item.admittime %}Admit: {{ item.admittime }}{% else %}Admit time unavailable{% endif %}
+                <br>
+                {% if item.dischtime %}Discharge: {{ item.dischtime }}{% else %}Discharge time unavailable{% endif %}
+              </div>
+              <div class="timeline-tags">
+                <span class="mini-tag">
+                  {% if item.is_current %}Current Encounter{% else %}Historical Encounter{% endif %}
+                </span>
+                <span class="mini-tag">{{ item.diagnosis_count }} diagnoses</span>
+                <span class="mini-tag">{{ item.medication_count }} meds</span>
+                {% if item.length_of_stay_days is not none %}
+                <span class="mini-tag">{{ item.length_of_stay_days }}d stay</span>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty">No admission history is available for this patient.</div>
+          {% endif %}
+        </article>
+
+        <article class="panel section">
+          <div class="section-head">
+            <h2>Semantic Query</h2>
+            <span>Prompt used for vector retrieval</span>
+          </div>
+          {% if semantic.query %}
+          <div class="query-box">{{ semantic.query }}</div>
+          {% else %}
+          <div class="empty">No semantic query was generated.</div>
+          {% endif %}
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,177 +1,361 @@
-# Discharge Summarizer (GraphRAG for Clinical Admissions)
+# Discharge Summarizer
 
-This project builds a lightweight GraphRAG pipeline for clinical discharge summarization using:
+Clinical GraphRAG pipeline for discharge summarization built with Neo4j, Weaviate, Groq, and FastAPI.
 
-- **Neo4j** for structured patient-admission graph data
-- **Weaviate** for vector semantic retrieval over admission text
-- **Groq LLM** for discharge summary generation
-- **FastAPI** for a simple web interface
+## What This Project Does
+
+This project:
+
+- loads clinical CSV data into Neo4j
+- stores admission-level vector data in Weaviate
+- uses Groq to generate a discharge summary
+- shows the result in a FastAPI web app
+
+## Tech Stack
+
+- `Python`
+- `FastAPI`
+- `Neo4j`
+- `Weaviate`
+- `Groq`
+- `Docker`
 
 ## Project Structure
 
 ```text
 Discharge_Summarizer/
-  Dockerfile             # Container image for FastAPI app
-  .dockerignore
+  Dockerfile
+  docker-compose.yml
   requirements.txt
+  .env                     # You will create this file
   data/
-    raw/                  # Source CSV datasets
-    eval/                 # Evaluation outputs
+    raw/                   # Source CSV datasets
+    eval/                  # Evaluation outputs
   src/
-    api/                  # FastAPI app + HTML templates
-    db/                   # Neo4j and Weaviate clients
-    ingestion/            # KG build + vector ingestion scripts
-    retrieval/            # Graph retrieval, semantic query generation, vector search, logging
-    llm/                  # Groq client + summary generation
-    evaluation/           # Offline RAG evaluation script
+    api/                   # FastAPI app + templates
+    db/                    # Neo4j and Weaviate clients
+    ingestion/             # KG build + vector ingestion scripts
+    retrieval/             # Retrieval, query generation, logging
+    llm/                   # Groq client + summary generation
+    evaluation/            # Offline evaluation script
 ```
 
-## Requirements
+## Before You Start
 
-- Python 3.10+ (tested with Python 3.11)
-- Running Neo4j instance
-- Running Weaviate instance
-- Groq API key
+Install these first:
 
-Python packages used by this repo:
+- `Python 3.10+` recommended: `Python 3.11`
+- `Docker Desktop`
+- `Neo4j desktop`
+- a `Groq API key`
 
-See `requirements.txt`.
+Also make sure you are working from the project root folder:
 
-## Environment Variables
+```powershell
+cd c:\Users\Shrushti Modak\OneDrive\Desktop\Discharge_Summarizer
+```
 
-Create a `.env` file in the project root:
+## Dataset Folder Format
+
+Keep your CSV files inside `data/raw` in the same nested folder style already used in this repo.
+
+Examples:
+
+- `data/raw/admissions.csv/admissions.csv`
+- `data/raw/patients.csv/patients.csv`
+- `data/raw/diagnoses_icd.csv/diagnoses_icd.csv`
+- `data/raw/prescriptions.csv/prescriptions.csv`
+
+If you change this layout, the ingestion scripts may fail unless you also update the code.
+
+## Step 1: Create Virtual Environment
+
+Run these commands one time:
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+If PowerShell blocks activation, run:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\venv\Scripts\Activate.ps1
+```
+
+## Step 2: Create `.env` File
+
+Create a file named `.env` in the project root.
+
+Add this exact content:
 
 ```env
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=your_password
+NEO4J_PASSWORD=password
 WEAVIATE_URL=http://localhost:8080
-GROQ_API_KEY=your_groq_api_key
+GROQ_API_KEY=your_groq_api_key_here
 ```
 
-## Data Layout Note
+## What Each `.env` Value Means
 
-Current scripts expect CSVs in nested paths like:
+- `NEO4J_URI=bolt://localhost:7687`
+  Use this when you run Python commands on your own machine.
+- `NEO4J_USER=neo4j`
+  Default username from this repo's `docker-compose.yml`.
+- `NEO4J_PASSWORD=password`
+  Default password from this repo's `docker-compose.yml`.
+- `WEAVIATE_URL=http://localhost:8080`
+  Local Weaviate URL for commands you run from PowerShell.
+- `GROQ_API_KEY=...`
+  Replace this with your real Groq key.
 
-- `data/raw/admissions.csv/admissions.csv`
-- `data/raw/patients.csv/patients.csv`
+Important:
 
-Keep this layout unless you also update paths in ingestion/evaluation scripts.
+- do not keep `your_groq_api_key_here`
+- replace it with your real key
+- do not add quotes unless your value actually needs them
 
-## Setup
+## Step 3: Start Required Services
 
-From repository root:
+Start Neo4j and Weaviate:
 
 ```powershell
-python -m venv venv
-.\venv\Scripts\activate
-pip install -U pip
-pip install -r requirements.txt
+docker compose up -d neo4j weaviate
+docker compose ps
 ```
 
-## Build the Knowledge Graph (Neo4j)
+Expected ports:
+
+- Neo4j Browser: `7474`
+- Neo4j Bolt: `7687`
+- Weaviate: `8080`
+
+Useful links after Docker starts:
+
+- Neo4j Browser: `http://localhost:7474`
+- FastAPI app later: `http://127.0.0.1:8000`
+
+## Step 4: Load Data Into Neo4j
+
+Run:
 
 ```powershell
 python -m src.ingestion.build_kg
 ```
 
-This loads patient/admission/diagnosis/prescription data into Neo4j.
+This builds the knowledge graph from the raw CSV files.
 
-## Ingest Vectors (Weaviate)
+## Step 5: Load Vector Data Into Weaviate
+
+Run:
 
 ```powershell
 python -m src.ingestion.vector_ingest
 ```
 
-This creates `ClinicalDoc` schema (if missing), builds admission documents, embeds them, and writes vectors.
+This:
 
-## Run the FastAPI App
+- creates the Weaviate schema if needed
+- builds admission documents
+- generates embeddings
+- stores vectors in Weaviate
+
+## Step 6: Start the Web App
+
+Run:
 
 ```powershell
 uvicorn src.api.main:app --reload
 ```
 
-Open: `http://127.0.0.1:8000`
+Then open:
 
-Enter an admission id (`hadm_id`) to view:
+```text
+http://127.0.0.1:8000
+```
+
+Enter a `hadm_id` in the form to see:
 
 - structured graph data
-- timeline admissions for that patient
-- LLM-generated discharge summary
+- admission timeline
+- semantic retrieval results
+- generated discharge summary
 
-## Retrieval Flow (Current Codebase)
+## First-Time Setup Summary
 
-For each `hadm_id`, retrieval logic now:
+If you are running this project for the very first time, do everything in this order:
 
-1. Fetches structured data from Neo4j.
-2. Uses Groq to generate a semantic clinical query (`semantic_query_generator.py`).
-3. Embeds that query with `all-MiniLM-L6-v2`.
-4. Runs Weaviate `near_vector` search (top 10).
-5. Logs each retrieval experiment to `retrieval_logs.jsonl` (`retrieval_logger.py`).
+```powershell
+cd c:\Users\Shrushti Modak\OneDrive\Desktop\Discharge_Summarizer
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -r requirements.txt
+docker compose up -d neo4j weaviate
+python -m src.ingestion.build_kg
+python -m src.ingestion.vector_ingest
+uvicorn src.api.main:app --reload
+```
 
-## Evaluate Retrieval/Summary Quality
+## Commands To Run Every Time
 
-Without LLM generation:
+After the project has already been set up once, these are the usual commands you need each time:
+
+```powershell
+cd c:\Users\Shrushti Modak\OneDrive\Desktop\Discharge_Summarizer
+.\venv\Scripts\Activate.ps1
+docker compose up -d neo4j weaviate
+uvicorn src.api.main:app --reload
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000
+```
+
+## Commands You Only Run When Data Changes
+
+Run these again only if:
+
+- you changed the CSV files
+- you want to rebuild the graph
+- you want to refresh vector data
+
+```powershell
+python -m src.ingestion.build_kg
+python -m src.ingestion.vector_ingest
+```
+
+## Evaluation Commands
+
+Run retrieval evaluation without LLM summary generation:
 
 ```powershell
 python -m src.evaluation.evaluate_rag --sample-size 20
 ```
 
-With LLM generation + coverage metrics:
+Run evaluation with LLM summary generation:
 
 ```powershell
 python -m src.evaluation.evaluate_rag --sample-size 20 --run-llm
 ```
 
-Output defaults to:
+Output file:
 
 - `data/eval/rag_eval_results.csv`
 
-## Run with Docker
+## Docker Notes
 
-Build image:
+This repo's `docker-compose.yml` uses:
 
-```powershell
-docker build -t discharge-summarizer .
-```
+- Neo4j username: `neo4j`
+- Neo4j password: `password`
 
-Run container:
+Inside Docker, the app container talks to:
 
-```powershell
-docker run -p 8000:8000 --env-file .env discharge-summarizer
-```
+- `bolt://neo4j:7687`
+- `http://weaviate:8080`
 
-Open: `http://127.0.0.1:8000`
+But in your local `.env` file, keep:
 
-Note: Neo4j and Weaviate are expected to run separately and be reachable from container using values in `.env`.
-evalution
+- `NEO4J_URI=bolt://localhost:7687`
+- `WEAVIATE_URL=http://localhost:8080`
 
-python src/evaluation/evaluate_rag.py
+That is correct for running Python commands directly from PowerShell on your machine.
+
 ## Troubleshooting
 
-- Neo4j auth/connection errors: verify `NEO4J_URI`, user, password.
-- Weaviate query errors: verify `WEAVIATE_URL` and that schema `ClinicalDoc` exists.
-- Empty retrieval results: run vector ingestion again and confirm data loaded.
-- LLM errors: check `GROQ_API_KEY` and outbound network access.
-- Missing `retrieval_logs.jsonl`: run at least one retrieval request through API/pipeline.
+## 1. Neo4j connection error
 
+Check:
 
+- `docker compose ps`
+- Neo4j is running
+- `.env` has the correct `NEO4J_URI`, `NEO4J_USER`, and `NEO4J_PASSWORD`
 
-#first time run 
-python -m src.ingestion.build_kg
+Restart if needed:
+
+```powershell
+docker compose up -d neo4j
+```
+
+## 2. Weaviate connection error
+
+Check:
+
+- `docker compose ps`
+- Weaviate is running
+- `.env` has the correct `WEAVIATE_URL`
+
+Restart if needed:
+
+```powershell
+docker compose up -d weaviate
+```
+
+## 3. Groq error
+
+Check:
+
+- your `GROQ_API_KEY` is present in `.env`
+- the key is valid
+- there are no extra spaces in the value
+
+## 4. Empty retrieval results
+
+Run vector ingestion again:
+
+```powershell
 python -m src.ingestion.vector_ingest
+```
 
+## 5. App opens but no useful output
 
+Make sure:
 
-# 3) Start only app (neo4j + weaviate are already running)
-# from project root
+- knowledge graph ingestion was completed
+- vector ingestion was completed
+- you entered a valid `hadm_id`
+
+## Quick Command Cheat Sheet
+
+Activate environment:
+
+```powershell
 .\venv\Scripts\Activate.ps1
+```
 
-# start required services
-docker compose up -d weaviate neo4j
+Start services:
 
-# optional check
-docker compose ps
+```powershell
+docker compose up -d neo4j weaviate
+```
 
-# run app
+Build Neo4j graph:
+
+```powershell
+python -m src.ingestion.build_kg
+```
+
+Build Weaviate vectors:
+
+```powershell
+python -m src.ingestion.vector_ingest
+```
+
+Run app:
+
+```powershell
 uvicorn src.api.main:app --reload
+```
+
+Run evaluation:
+
+```powershell
+python -m src.evaluation.evaluate_rag --sample-size 20
+```

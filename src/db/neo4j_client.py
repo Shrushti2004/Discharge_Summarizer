@@ -1,5 +1,6 @@
 import atexit
 from neo4j import GraphDatabase
+from neo4j.exceptions import Neo4jError, ServiceUnavailable
 from src.config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
 
 driver = None
@@ -16,10 +17,22 @@ def get_driver():
         )
     return driver
 
+
 @atexit.register
 def close_driver():
     if driver is not None:
         driver.close()
+
+
+def verify_connection():
+    try:
+        get_driver().verify_connectivity()
+    except (ServiceUnavailable, Neo4jError) as exc:
+        raise RuntimeError(
+            "Unable to connect to Neo4j. Start the Neo4j service and verify "
+            "NEO4J_URI/NEO4J_USER/NEO4J_PASSWORD in .env."
+        ) from exc
+
 
 def run_query(query, params=None):
     with get_driver().session() as session:

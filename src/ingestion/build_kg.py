@@ -1,8 +1,11 @@
+import sys
 import pandas as pd
-from src.db.neo4j_client import run_query
+from src.db.neo4j_client import run_query, verify_connection
 
 
 def build_graph():
+
+    verify_connection()
 
     print("Loading CSV files...")
 
@@ -66,4 +69,7 @@ def build_graph():
 
 
 if __name__ == "__main__":
-    build_graph()
+    try:
+        build_graph()
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from exc
